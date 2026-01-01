@@ -4,10 +4,14 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CustomFieldModule } from './customField.module';
 import { ContactModule } from './contact.module';
+import { AdminModule } from './admin.module';
 import { ElasticsearchModule } from './infrastructure/elasticsearch/elasticsearch.module';
+import { QueueModule } from './infrastructure/queue/queue.module';
+import { OutboxModule } from './infrastructure/outbox/outbox.module';
 import { CustomFieldDefinitionEntity } from './infrastructure/persistence/typeorm/entity/customFieldDefinition.entity';
 import { ContactEntity } from './infrastructure/persistence/typeorm/entity/contact.entity';
 import { CustomFieldValueEntity } from './infrastructure/persistence/typeorm/entity/customFieldValue.entity';
+import { OutboxEntity } from './infrastructure/persistence/typeorm/entity/outbox.entity';
 
 @Module({
   imports: [
@@ -22,13 +26,17 @@ import { CustomFieldValueEntity } from './infrastructure/persistence/typeorm/ent
         CustomFieldDefinitionEntity,
         ContactEntity,
         CustomFieldValueEntity,
+        OutboxEntity,
       ],
       synchronize: true, // 개발용, 프로덕션에서는 false
       logging: process.env.NODE_ENV !== 'production',
     }),
     ElasticsearchModule,
+    QueueModule,
+    OutboxModule,
     CustomFieldModule,
     ContactModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -43,6 +43,21 @@ services:
       elasticsearch:
         condition: service_healthy
 
+  redis:
+    image: redis:7-alpine
+    container_name: redis-custom-fields
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - elastic
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   mysql:
     image: mysql:8.0
     container_name: mysql-custom-fields
@@ -72,4 +87,6 @@ volumes:
   es-data:
     driver: local
   mysql-data:
+    driver: local
+  redis-data:
     driver: local
