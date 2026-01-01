@@ -12,6 +12,7 @@ import {
 import { ContactService } from '../../../application/contact/contact.service';
 import type { CreateContactDto } from '../../../application/contact/dto/createContact.dto';
 import type { UpdateContactDto } from '../../../application/contact/dto/updateContact.dto';
+import type { Contact } from '../../../domain/contact/contact.domain';
 
 /**
  * Contact REST API 컨트롤러
@@ -74,7 +75,7 @@ export class ContactController {
   /**
    * Domain -> Response DTO 변환
    */
-  private toResponse(contact: any) {
+  private toResponse(contact: Contact) {
     // 커스텀 필드 값을 { apiName: value } 형태로 변환
     const customFields: Record<string, string | number | Date | null> = {};
     for (const fieldValue of contact.customFieldValues) {

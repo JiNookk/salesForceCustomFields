@@ -49,18 +49,6 @@ describe('CustomFieldValue', () => {
     return field;
   };
 
-  const createRequiredTextField = () => {
-    const field = CustomFieldDefinition.create({
-      id: 'def-5',
-      name: '전화번호',
-      apiName: 'phone__c',
-      fieldType: FieldType.TEXT,
-      isRequired: true,
-    });
-    field.activate();
-    return field;
-  };
-
   describe('생성', () => {
     it('TEXT 타입 값을 생성할 수 있다', () => {
       // Given

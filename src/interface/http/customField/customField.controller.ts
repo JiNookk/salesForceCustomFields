@@ -45,7 +45,9 @@ export class CustomFieldController {
   @Get()
   async findAll(): Promise<CustomFieldResponse[]> {
     const definitions = await this.service.findAllActive();
-    return definitions.map(CustomFieldResponse.from);
+    return definitions.map((definition) =>
+      CustomFieldResponse.from(definition),
+    );
   }
 
   /**

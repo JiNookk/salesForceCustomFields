@@ -6,6 +6,7 @@ import { CustomFieldDefinitionEntity } from './infrastructure/persistence/typeor
 import { ContactRepository } from './infrastructure/persistence/typeorm/repository/contact.repository';
 import { ContactService } from './application/contact/contact.service';
 import { ContactController } from './interface/http/contact/contact.controller';
+import { SearchController } from './interface/http/search/search.controller';
 import { CONTACT_REPOSITORY } from './application/contact/port/contact.repository.port';
 import { CustomFieldModule } from './customField.module';
 
@@ -18,7 +19,7 @@ import { CustomFieldModule } from './customField.module';
     ]),
     CustomFieldModule,
   ],
-  controllers: [ContactController],
+  controllers: [SearchController, ContactController],
   providers: [
     ContactService,
     {

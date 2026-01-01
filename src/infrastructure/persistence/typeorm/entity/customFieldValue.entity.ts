@@ -40,7 +40,12 @@ export class CustomFieldValueEntity {
   @Column({ name: 'value_date', type: 'date', nullable: true })
   valueDate: Date | null;
 
-  @Column({ name: 'value_select', type: 'varchar', length: 100, nullable: true })
+  @Column({
+    name: 'value_select',
+    type: 'varchar',
+    length: 100,
+    nullable: true,
+  })
   valueSelect: string | null;
 
   @ManyToOne(() => ContactEntity, (contact) => contact.customFieldValues, {

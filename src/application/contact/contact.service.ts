@@ -12,6 +12,10 @@ import type { CustomFieldDefinitionRepositoryPort } from '../customField/port/cu
 import { CUSTOM_FIELD_DEFINITION_REPOSITORY } from '../customField/port/customFieldDefinition.repository.port';
 import type { CreateContactDto } from './dto/createContact.dto';
 import type { UpdateContactDto } from './dto/updateContact.dto';
+import {
+  ElasticsearchService,
+  type ContactDocument,
+} from '../../infrastructure/elasticsearch/elasticsearch.service';
 
 /**
  * Contact 서비스
@@ -23,6 +27,7 @@ export class ContactService {
     private readonly contactRepository: ContactRepositoryPort,
     @Inject(CUSTOM_FIELD_DEFINITION_REPOSITORY)
     private readonly fieldDefinitionRepository: CustomFieldDefinitionRepositoryPort,
+    private readonly elasticsearchService: ElasticsearchService,
   ) {}
 
   /**
@@ -52,6 +57,10 @@ export class ContactService {
     }
 
     await this.contactRepository.save(contact);
+
+    // ES 동기화
+    await this.syncToElasticsearch(contact);
+
     return contact;
   }
 
@@ -90,6 +99,10 @@ export class ContactService {
     }
 
     await this.contactRepository.save(contact);
+
+    // ES 동기화
+    await this.syncToElasticsearch(contact);
+
     return contact;
   }
 
@@ -100,6 +113,9 @@ export class ContactService {
     // 존재 확인
     await this.findById(id);
     await this.contactRepository.delete(id);
+
+    // ES에서 삭제
+    await this.elasticsearchService.deleteContact(id);
   }
 
   /**
@@ -134,5 +150,33 @@ export class ContactService {
         contact.setCustomFieldValue(definition, value, fieldValueId);
       }
     }
+  }
+
+  /**
+   * ES에 Contact 동기화
+   */
+  private async syncToElasticsearch(contact: Contact): Promise<void> {
+    const document = this.toDocument(contact);
+    await this.elasticsearchService.indexContact(document);
+  }
+
+  /**
+   * Contact -> ES Document 변환
+   */
+  private toDocument(contact: Contact): ContactDocument {
+    const customFields: Record<string, string | number | Date | null> = {};
+
+    for (const fieldValue of contact.customFieldValues) {
+      customFields[fieldValue.fieldDefinition.apiName] = fieldValue.getValue();
+    }
+
+    return {
+      id: contact.id,
+      email: contact.email,
+      name: contact.name,
+      customFields,
+      createdAt: contact.createdAt,
+      updatedAt: contact.updatedAt,
+    };
   }
 }

@@ -1,4 +1,10 @@
-import { IsString, IsEnum, IsOptional, IsBoolean, IsArray } from 'class-validator';
+import {
+  IsString,
+  IsEnum,
+  IsOptional,
+  IsBoolean,
+  IsArray,
+} from 'class-validator';
 import { FieldType } from '../../../domain/customField/fieldType.vo';
 
 /**

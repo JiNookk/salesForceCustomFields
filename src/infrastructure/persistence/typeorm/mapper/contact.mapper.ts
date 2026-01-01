@@ -3,7 +3,6 @@ import { CustomFieldDefinition } from '../../../../domain/customField/customFiel
 import { CustomFieldValue } from '../../../../domain/customField/customFieldValue.domain';
 import { ContactEntity } from '../entity/contact.entity';
 import { CustomFieldValueEntity } from '../entity/customFieldValue.entity';
-import { CustomFieldDefinitionMapper } from './customFieldDefinition.mapper';
 import type { FieldType } from '../../../../domain/customField/fieldType.vo';
 
 /**
@@ -28,7 +27,10 @@ export class ContactMapper {
           continue;
         }
 
-        const value = this.extractValueFromEntity(valueEntity, definition.fieldType);
+        const value = this.extractValueFromEntity(
+          valueEntity,
+          definition.fieldType,
+        );
         if (value !== null && value !== undefined) {
           const fieldValue = CustomFieldValue.create({
             id: valueEntity.id,

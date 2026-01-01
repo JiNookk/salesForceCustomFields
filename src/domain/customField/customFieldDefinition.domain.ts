@@ -39,9 +39,7 @@ export class CustomFieldDefinition {
   static create(args: CreateFieldDefinitionArgs): CustomFieldDefinition {
     // API 이름 규칙 검증: 영문 소문자로 시작, 소문자+숫자+언더스코어 허용, __c로 끝남
     if (!/^[a-z][a-z0-9_]*__c$/.test(args.apiName)) {
-      throw new Error(
-        'API 이름은 영문 소문자로 시작하고 __c로 끝나야 합니다',
-      );
+      throw new Error('API 이름은 영문 소문자로 시작하고 __c로 끝나야 합니다');
     }
 
     // SELECT 타입이면 options 필수

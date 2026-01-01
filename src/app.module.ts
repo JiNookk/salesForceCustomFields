@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CustomFieldModule } from './customField.module';
 import { ContactModule } from './contact.module';
+import { ElasticsearchModule } from './infrastructure/elasticsearch/elasticsearch.module';
 import { CustomFieldDefinitionEntity } from './infrastructure/persistence/typeorm/entity/customFieldDefinition.entity';
 import { ContactEntity } from './infrastructure/persistence/typeorm/entity/contact.entity';
 import { CustomFieldValueEntity } from './infrastructure/persistence/typeorm/entity/customFieldValue.entity';
@@ -25,6 +26,7 @@ import { CustomFieldValueEntity } from './infrastructure/persistence/typeorm/ent
       synchronize: true, // 개발용, 프로덕션에서는 false
       logging: process.env.NODE_ENV !== 'production',
     }),
+    ElasticsearchModule,
     CustomFieldModule,
     ContactModule,
   ],

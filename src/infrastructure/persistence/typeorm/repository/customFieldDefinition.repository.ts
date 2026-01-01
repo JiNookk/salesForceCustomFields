@@ -10,9 +10,7 @@ import { CustomFieldDefinitionMapper } from '../mapper/customFieldDefinition.map
  * CustomFieldDefinition Repository 구현
  */
 @Injectable()
-export class CustomFieldDefinitionRepository
-  implements CustomFieldDefinitionRepositoryPort
-{
+export class CustomFieldDefinitionRepository implements CustomFieldDefinitionRepositoryPort {
   constructor(
     @InjectRepository(CustomFieldDefinitionEntity)
     private readonly repository: Repository<CustomFieldDefinitionEntity>,
@@ -35,7 +33,9 @@ export class CustomFieldDefinitionRepository
       where: { isActive: true },
       order: { displayOrder: 'ASC', createdAt: 'ASC' },
     });
-    return entities.map(CustomFieldDefinitionMapper.toDomain);
+    return entities.map((entity) =>
+      CustomFieldDefinitionMapper.toDomain(entity),
+    );
   }
 
   async save(definition: CustomFieldDefinition): Promise<void> {

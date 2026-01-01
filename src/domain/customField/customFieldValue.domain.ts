@@ -30,7 +30,8 @@ export class CustomFieldValue {
     const { id, fieldDefinition, value } = args;
 
     // 필드 정의로 값 검증
-    const validationValue = value instanceof Date ? value.toISOString().split('T')[0] : value;
+    const validationValue =
+      value instanceof Date ? value.toISOString().split('T')[0] : value;
     const validation = fieldDefinition.validateValue(validationValue);
     if (!validation.valid) {
       throw new Error(validation.error);
@@ -75,7 +76,9 @@ export class CustomFieldValue {
    */
   updateValue(newValue: string | number | Date): void {
     const validationValue =
-      newValue instanceof Date ? newValue.toISOString().split('T')[0] : newValue;
+      newValue instanceof Date
+        ? newValue.toISOString().split('T')[0]
+        : newValue;
     const validation = this._fieldDefinition.validateValue(validationValue);
     if (!validation.valid) {
       throw new Error(validation.error);
