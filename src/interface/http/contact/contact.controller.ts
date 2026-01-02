@@ -76,15 +76,8 @@ export class ContactController {
     return this.toResponse(contact);
   }
 
-  /**
-   * Contact 목록 조회
-   * GET /api/v1/contacts
-   */
-  @Get()
-  async findAll() {
-    const contacts = await this.contactService.findAll();
-    return contacts.map((contact) => this.toResponse(contact));
-  }
+  // findAll() 삭제됨 - 500K 레코드를 한번에 로드하면 메모리 크래시 발생
+  // 대신 /api/v1/contacts/search 사용
 
   /**
    * Contact 상세 조회

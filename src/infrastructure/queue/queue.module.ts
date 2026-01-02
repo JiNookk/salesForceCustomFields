@@ -13,7 +13,7 @@ import { ES_SYNC_QUEUE } from './es-sync.types';
     BullModule.forRoot({
       connection: {
         host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT || '6379', 10),
+        port: parseInt(process.env.REDIS_PORT || '16379', 10),
       },
     }),
     BullModule.registerQueue({

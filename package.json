@@ -1,7 +1,7 @@
 {
-  "name": "salesforce-custom-fields",
+  "name": "eav-elasticsearch-benchmark",
   "version": "0.0.1",
-  "description": "Salesforce 스타일 커스텀 필드 시스템 + Elasticsearch",
+  "description": "EAV 패턴(MySQL) vs Elasticsearch 성능 벤치마크",
   "author": "ojin-ug",
   "private": true,
   "license": "MIT",

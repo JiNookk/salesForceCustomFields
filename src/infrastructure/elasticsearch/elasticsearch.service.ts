@@ -316,9 +316,9 @@ export class ElasticsearchService implements OnModuleInit {
     field: string,
     aggregationSize = 10,
   ): Promise<AggregationResult[]> {
-    // 커스텀 필드와 기본 필드 모두 .keyword 사용
+    // 커스텀 필드는 이미 keyword 타입, 기본 필드는 .keyword 서브필드 사용
     const fieldPath = field.endsWith('__c')
-      ? `customFields.${field}.keyword`
+      ? `customFields.${field}`
       : `${field}.keyword`;
 
     const response = await this.client.search({

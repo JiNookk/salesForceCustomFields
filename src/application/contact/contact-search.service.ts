@@ -171,14 +171,15 @@ export class ContactSearchService {
 
   /**
    * MySQL 기본 검색 (커스텀 필드 정렬 없음)
+   * 최적화: Contact 먼저 조회 후, 해당 Contact의 fieldValues만 별도 조회
    */
   private async searchWithMySqlBasic(
     dto: SearchContactsDto,
     queryRunner: QueryRunner,
   ): Promise<{ data: ContactResponse[]; total: number }> {
-    let qb: SelectQueryBuilder<ContactEntity> = queryRunner.manager
-      .createQueryBuilder(ContactEntity, 'c')
-      .leftJoinAndSelect('c.fieldValues', 'fv');
+    // 1단계: Contact만 조회 (fieldValues JOIN 없이)
+    let qb: SelectQueryBuilder<ContactEntity> =
+      queryRunner.manager.createQueryBuilder(ContactEntity, 'c');
 
     // 검색 조건 (firstName + lastName 조합)
     if (dto.search) {
@@ -238,6 +239,27 @@ export class ContactSearchService {
     qb = qb.skip(offset).take(dto.pageSize);
 
     const contacts = await qb.getMany();
+
+    // 2단계: 해당 Contact들의 fieldValues만 별도 조회 (최대 20개 × 10필드 = 200행)
+    if (contacts.length > 0) {
+      const contactIds = contacts.map((c) => c.id);
+      const fieldValues = await queryRunner.manager
+        .createQueryBuilder(FieldValueEntity, 'fv')
+        .where('fv.recordId IN (:...contactIds)', { contactIds })
+        .getMany();
+
+      // fieldValues를 contact에 매핑
+      const fieldValueMap = new Map<string, FieldValueEntity[]>();
+      for (const fv of fieldValues) {
+        const existing = fieldValueMap.get(fv.recordId) || [];
+        existing.push(fv);
+        fieldValueMap.set(fv.recordId, existing);
+      }
+
+      for (const contact of contacts) {
+        contact.fieldValues = fieldValueMap.get(contact.id) || [];
+      }
+    }
 
     return {
       data: await this.transformContacts(contacts, queryRunner),

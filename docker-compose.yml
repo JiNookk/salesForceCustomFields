@@ -47,7 +47,7 @@ services:
     image: redis:7-alpine
     container_name: redis-custom-fields
     ports:
-      - "6379:6379"
+      - "16379:6379"
     volumes:
       - redis-data:/data
     networks:
