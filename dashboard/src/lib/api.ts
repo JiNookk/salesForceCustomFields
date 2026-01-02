@@ -72,3 +72,32 @@ export async function fetchCustomFields(): Promise<CustomFieldDefinition[]> {
 
   return response.json();
 }
+
+/**
+ * 집계 결과 타입
+ */
+export interface AggregationItem {
+  key: string;
+  count: number;
+}
+
+/**
+ * 필드별 집계 조회
+ */
+export async function fetchAggregation(field: string): Promise<AggregationItem[]> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/es/contacts/aggregate?field=${field}`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`API 요청 실패: ${response.status}`);
+  }
+
+  return response.json();
+}

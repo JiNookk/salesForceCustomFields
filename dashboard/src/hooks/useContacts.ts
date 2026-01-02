@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { fetchContacts, fetchCustomFields } from '@/lib/api';
+import { fetchContacts, fetchCustomFields, fetchAggregation } from '@/lib/api';
 import type { ContactsRequest } from '@/types/contact';
 
 /**
@@ -23,5 +23,16 @@ export function useCustomFields() {
     queryKey: ['customFields'],
     queryFn: fetchCustomFields,
     staleTime: 5 * 60 * 1000, // 5분
+  });
+}
+
+/**
+ * 필드별 집계 조회 훅
+ */
+export function useAggregation(field: string) {
+  return useQuery({
+    queryKey: ['aggregation', field],
+    queryFn: () => fetchAggregation(field),
+    staleTime: 30 * 1000, // 30초
   });
 }

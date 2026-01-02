@@ -34,13 +34,13 @@ export function ContactsTable({
   const columns = useMemo(() => {
     const baseColumns = [
       columnHelper.accessor('name', {
-        header: 'Name',
+        header: '이름',
         cell: (info) => (
           <span className="font-medium text-gray-900">{info.getValue()}</span>
         ),
       }),
       columnHelper.accessor('email', {
-        header: 'Email',
+        header: '이메일',
         cell: (info) => (
           <a
             href={`mailto:${info.getValue()}`}
@@ -51,7 +51,7 @@ export function ContactsTable({
         ),
       }),
       columnHelper.accessor('createdAt', {
-        header: 'Created At',
+        header: '생성일',
         cell: (info) => new Date(info.getValue()).toLocaleDateString('ko-KR'),
       }),
     ];
