@@ -30,7 +30,7 @@ import { OutboxEntity } from './infrastructure/persistence/typeorm/entity/outbox
         FieldValueEntity,
         OutboxEntity,
       ],
-      synchronize: false, // 개발용, 프로덕션에서는 false
+      synchronize: true, // 개발용, 프로덕션에서는 false
       logging: false,
     }),
     ElasticsearchModule,

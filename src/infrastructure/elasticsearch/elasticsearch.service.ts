@@ -45,8 +45,8 @@ export class ElasticsearchService implements OnModuleInit {
 
   /**
    * contacts 인덱스 생성
-   * - 기본 필드: id, email, name, createdAt, updatedAt
-   * - 커스텀 필드: customFields.* (동적 매핑)
+   * - ngram analyzer: 인덱싱 시 토큰 분해, 검색 시 standard 사용
+   * - 부분 문자열 검색 지원 (.search 서브필드)
    */
   private async createContactsIndex(): Promise<void> {
     await this.client.indices.create({
@@ -54,27 +54,119 @@ export class ElasticsearchService implements OnModuleInit {
       settings: {
         number_of_shards: 1,
         number_of_replicas: 0,
+        'index.max_ngram_diff': 8,
+        analysis: {
+          analyzer: {
+            ngram_analyzer: {
+              type: 'custom',
+              tokenizer: 'ngram_tokenizer',
+              filter: ['lowercase'],
+            },
+          },
+          tokenizer: {
+            ngram_tokenizer: {
+              type: 'ngram',
+              min_gram: 2,
+              max_gram: 10,
+              token_chars: ['letter', 'digit'],
+            },
+          },
+        },
       },
       mappings: {
         properties: {
           id: { type: 'keyword' },
           email: {
-            type: 'text',
+            type: 'keyword',
             fields: {
-              keyword: { type: 'keyword' },
+              search: {
+                type: 'text',
+                analyzer: 'ngram_analyzer',
+                search_analyzer: 'standard', // 검색어는 분해하지 않음
+              },
             },
           },
           name: {
-            type: 'text',
+            type: 'keyword',
             fields: {
-              keyword: { type: 'keyword' },
+              search: {
+                type: 'text',
+                analyzer: 'ngram_analyzer',
+                search_analyzer: 'standard',
+              },
             },
           },
           createdAt: { type: 'date' },
           updatedAt: { type: 'date' },
           customFields: {
             type: 'object',
-            dynamic: true,
+            dynamic: 'true',
+            properties: {
+              job_title__c: {
+                type: 'keyword',
+                fields: {
+                  search: {
+                    type: 'text',
+                    analyzer: 'ngram_analyzer',
+                    search_analyzer: 'standard',
+                  },
+                },
+              },
+              department__c: {
+                type: 'keyword',
+                fields: {
+                  search: {
+                    type: 'text',
+                    analyzer: 'ngram_analyzer',
+                    search_analyzer: 'standard',
+                  },
+                },
+              },
+              region__c: {
+                type: 'keyword',
+                fields: {
+                  search: {
+                    type: 'text',
+                    analyzer: 'ngram_analyzer',
+                    search_analyzer: 'standard',
+                  },
+                },
+              },
+              tier__c: {
+                type: 'keyword',
+                fields: {
+                  search: {
+                    type: 'text',
+                    analyzer: 'ngram_analyzer',
+                    search_analyzer: 'standard',
+                  },
+                },
+              },
+              lead_source__c: {
+                type: 'keyword',
+                fields: {
+                  search: {
+                    type: 'text',
+                    analyzer: 'ngram_analyzer',
+                    search_analyzer: 'standard',
+                  },
+                },
+              },
+              notes__c: {
+                type: 'keyword',
+                fields: {
+                  search: {
+                    type: 'text',
+                    analyzer: 'ngram_analyzer',
+                    search_analyzer: 'standard',
+                  },
+                },
+              },
+              score__c: { type: 'integer' },
+              annual_revenue__c: { type: 'long' },
+              contract_start__c: { type: 'date' },
+              last_contact_date__c: { type: 'date' },
+            },
           },
         },
       },
@@ -125,11 +217,21 @@ export class ElasticsearchService implements OnModuleInit {
     const filter: any[] = [];
 
     // 키워드 검색 (.search 서브필드 사용 - ngram 분석기 적용)
+    // 텍스트 검색 가능한 필드만 명시 (날짜/숫자 필드 제외)
     if (keyword) {
       must.push({
         multi_match: {
           query: keyword,
-          fields: ['email.search', 'name.search'],
+          fields: [
+            'email.search',
+            'name.search',
+            'customFields.job_title__c.search',
+            'customFields.department__c.search',
+            'customFields.region__c.search',
+            'customFields.tier__c.search',
+            'customFields.lead_source__c.search',
+            'customFields.notes__c.search',
+          ],
           type: 'best_fields',
         },
       });
@@ -152,18 +254,20 @@ export class ElasticsearchService implements OnModuleInit {
       }
     }
 
-    // 정렬 (email, name은 이미 keyword 타입)
+    // 정렬: 검색어가 있으면 relevance(_score) 우선, 없으면 createdAt
     const sortArray: any[] = [];
     if (sort) {
       for (const [field, order] of Object.entries(sort)) {
         if (field.endsWith('__c')) {
-          // 커스텀 필드 정렬
           sortArray.push({ [`customFields.${field}`]: order });
         } else {
-          // 기본 필드 (email, name, createdAt, updatedAt)
           sortArray.push({ [field]: order });
         }
       }
+    } else if (keyword) {
+      // 검색어가 있으면 관련성 순 정렬
+      sortArray.push({ _score: 'desc' });
+      sortArray.push({ createdAt: 'desc' }); // 동점 시 최신순
     } else {
       sortArray.push({ createdAt: 'desc' });
     }
@@ -172,7 +276,7 @@ export class ElasticsearchService implements OnModuleInit {
 
     const response = await this.client.search<ContactDocument>({
       index: CONTACTS_INDEX,
-      track_total_hits: true, // 정확한 total count
+      track_total_hits: true,
       query: {
         bool: {
           must: must.length > 0 ? must : [{ match_all: {} }],
@@ -211,11 +315,21 @@ export class ElasticsearchService implements OnModuleInit {
     const filter: any[] = [];
 
     // 키워드 검색 (.search 서브필드 사용 - ngram 분석기 적용)
+    // 텍스트 검색 가능한 필드만 명시 (날짜/숫자 필드 제외)
     if (keyword) {
       must.push({
         multi_match: {
           query: keyword,
-          fields: ['email.search', 'name.search'],
+          fields: [
+            'email.search',
+            'name.search',
+            'customFields.job_title__c.search',
+            'customFields.department__c.search',
+            'customFields.region__c.search',
+            'customFields.tier__c.search',
+            'customFields.lead_source__c.search',
+            'customFields.notes__c.search',
+          ],
           type: 'best_fields',
         },
       });
@@ -262,18 +376,20 @@ export class ElasticsearchService implements OnModuleInit {
       }
     }
 
-    // 정렬 (email, name은 이미 keyword 타입)
+    // 정렬: 검색어가 있으면 relevance(_score) 우선, 없으면 createdAt
     const sortArray: any[] = [];
     if (sort) {
       for (const [field, order] of Object.entries(sort)) {
         if (field.endsWith('__c')) {
-          // 커스텀 필드 정렬
           sortArray.push({ [`customFields.${field}`]: order });
         } else {
-          // 기본 필드 (email, name, createdAt, updatedAt)
           sortArray.push({ [field]: order });
         }
       }
+    } else if (keyword) {
+      // 검색어가 있으면 관련성 순 정렬
+      sortArray.push({ _score: 'desc' });
+      sortArray.push({ createdAt: 'desc' }); // 동점 시 최신순
     } else {
       sortArray.push({ createdAt: 'desc' });
     }
@@ -282,7 +398,7 @@ export class ElasticsearchService implements OnModuleInit {
 
     const response = await this.client.search<ContactDocument>({
       index: CONTACTS_INDEX,
-      track_total_hits: true, // 정확한 total count
+      track_total_hits: true,
       query: {
         bool: {
           must: must.length > 0 ? must : [{ match_all: {} }],
