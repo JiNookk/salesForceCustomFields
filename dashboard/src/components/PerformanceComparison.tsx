@@ -32,9 +32,6 @@ export function PerformanceComparison({
     }
   }, [currentQueryTime, currentDataSource]);
 
-  const speedup =
-    mysqlTime > 0 && esTime > 0 ? (mysqlTime / esTime).toFixed(1) : null;
-
   const mysqlIsSlower = mysqlTime > esTime;
 
   return (
@@ -125,15 +122,6 @@ export function PerformanceComparison({
           </div>
         </div>
       </div>
-
-      {/* Speedup Indicator */}
-      {speedup && parseFloat(speedup) > 1 && (
-        <div className="mt-4 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 p-4 text-center text-white">
-          <p className="text-sm font-medium">Elasticsearch가</p>
-          <p className="text-3xl font-bold">{speedup}배 빠름</p>
-          <p className="text-sm opacity-90">MySQL EAV 패턴 대비</p>
-        </div>
-      )}
 
       {/* Hint */}
       <div className="mt-4 rounded-lg bg-blue-50 p-3 text-center text-sm text-blue-700">
