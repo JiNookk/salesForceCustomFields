@@ -12,6 +12,7 @@ import { SearchController } from './interface/http/search/search.controller';
 import { CONTACT_REPOSITORY } from './application/contact/port/contact.repository.port';
 import { CustomFieldModule } from './customField.module';
 import { ElasticsearchModule } from './infrastructure/elasticsearch/elasticsearch.module';
+import { QueueModule } from './infrastructure/queue/queue.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { ElasticsearchModule } from './infrastructure/elasticsearch/elasticsearc
     ]),
     CustomFieldModule,
     ElasticsearchModule,
+    QueueModule,
   ],
   controllers: [SearchController, ContactController],
   providers: [

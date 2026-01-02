@@ -1,19 +1,17 @@
 /**
- * 100만 건 시딩 스크립트 (Salesforce 스타일)
+ * 100만 건 시딩 스크립트
  * EAV 패턴 vs ES 성능 비교용 데이터 생성
  *
- * 테이블 구조:
- *   - accounts: 회사 (Salesforce Account)
- *   - contacts: 고객 (Salesforce Contact)
- *   - field_definitions: 커스텀 필드 정의
- *   - field_values: 커스텀 필드 값 (EAV)
+ * 테이블 구조 (현재 DB):
+ *   - contacts: 고객 (id, email, first_name, last_name, phone, status)
+ *   - custom_field_definitions: 커스텀 필드 정의
+ *   - custom_field_values: 커스텀 필드 값 (EAV, 타입별 컬럼)
  *
  * 사용법:
  *   npx ts-node scripts/seed.ts [options]
  *
  * 옵션:
  *   --contacts=N     Contact 수 (기본: 1000000)
- *   --accounts=N     Account 수 (기본: 10000)
  *   --batch=N        배치 크기 (기본: 5000)
  *   --skip-es        ES 동기화 스킵
  *   --es-only        ES 동기화만 실행 (MySQL 시딩 스킵)
@@ -24,32 +22,118 @@ import { DataSource } from 'typeorm';
 import { Client } from '@elastic/elasticsearch';
 import { v4 as uuidv4 } from 'uuid';
 
+// 타입 정의
+interface FieldDefRow {
+  id: string;
+  api_name: string;
+  field_type: string;
+}
+
+interface CountRow {
+  cnt: string;
+}
+
+interface ContactRow {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  createdAt: Date;
+  updatedAt: Date;
+  custom_fields_raw: string | null;
+}
+
 // 설정
 const CONFIG = {
-  CONTACTS_COUNT: parseInt(process.argv.find(a => a.startsWith('--contacts='))?.split('=')[1] || '1000000', 10),
-  ACCOUNTS_COUNT: parseInt(process.argv.find(a => a.startsWith('--accounts='))?.split('=')[1] || '10000', 10),
-  BATCH_SIZE: parseInt(process.argv.find(a => a.startsWith('--batch='))?.split('=')[1] || '5000', 10),
+  CONTACTS_COUNT: parseInt(
+    process.argv.find((a) => a.startsWith('--contacts='))?.split('=')[1] ||
+      '1000000',
+    10,
+  ),
+  BATCH_SIZE: parseInt(
+    process.argv.find((a) => a.startsWith('--batch='))?.split('=')[1] || '5000',
+    10,
+  ),
   SKIP_ES: process.argv.includes('--skip-es'),
   ES_ONLY: process.argv.includes('--es-only'),
 };
 
-// 커스텀 필드 정의 (Salesforce 스타일)
-// data_type: text, number, date, select, multi_select
-const FIELD_DEFINITIONS = [
-  { label: 'Department', apiName: 'department__c', dataType: 'select' as const, options: ['Sales', 'Marketing', 'Engineering', 'HR', 'Finance', 'Operations'] },
-  { label: 'Job Title', apiName: 'job_title__c', dataType: 'select' as const, options: ['Intern', 'Associate', 'Manager', 'Director', 'VP', 'C-Level'] },
-  { label: 'Annual Revenue', apiName: 'annual_revenue__c', dataType: 'number' as const, options: null },
-  { label: 'Contract Start', apiName: 'contract_start__c', dataType: 'date' as const, options: null },
-  { label: 'Lead Source', apiName: 'lead_source__c', dataType: 'select' as const, options: ['Web', 'Referral', 'Event', 'Cold Call', 'Partner'] },
-  { label: 'Last Contact Date', apiName: 'last_contact_date__c', dataType: 'date' as const, options: null },
-  { label: 'Score', apiName: 'score__c', dataType: 'number' as const, options: null },
-  { label: 'Notes', apiName: 'notes__c', dataType: 'text' as const, options: null },
-  { label: 'Region', apiName: 'region__c', dataType: 'select' as const, options: ['APAC', 'EMEA', 'Americas'] },
-  { label: 'Tier', apiName: 'tier__c', dataType: 'select' as const, options: ['BRONZE', 'SILVER', 'GOLD', 'PLATINUM'] },
+// 커스텀 필드 정의 (현재 DB 구조에 맞춤)
+// field_type: TEXT, NUMBER, DATE, SELECT (ENUM)
+const FIELD_DEFINITIONS: Array<{
+  name: string;
+  apiName: string;
+  fieldType: 'TEXT' | 'NUMBER' | 'DATE' | 'SELECT';
+  options: string[] | null;
+}> = [
+  {
+    name: 'Department',
+    apiName: 'department__c',
+    fieldType: 'SELECT',
+    options: [
+      'Sales',
+      'Marketing',
+      'Engineering',
+      'HR',
+      'Finance',
+      'Operations',
+    ],
+  },
+  {
+    name: 'Job Title',
+    apiName: 'job_title__c',
+    fieldType: 'SELECT',
+    options: ['Intern', 'Associate', 'Manager', 'Director', 'VP', 'C-Level'],
+  },
+  {
+    name: 'Annual Revenue',
+    apiName: 'annual_revenue__c',
+    fieldType: 'NUMBER',
+    options: null,
+  },
+  {
+    name: 'Contract Start',
+    apiName: 'contract_start__c',
+    fieldType: 'DATE',
+    options: null,
+  },
+  {
+    name: 'Lead Source',
+    apiName: 'lead_source__c',
+    fieldType: 'SELECT',
+    options: ['Web', 'Referral', 'Event', 'Cold Call', 'Partner'],
+  },
+  {
+    name: 'Last Contact Date',
+    apiName: 'last_contact_date__c',
+    fieldType: 'DATE',
+    options: null,
+  },
+  {
+    name: 'Score',
+    apiName: 'score__c',
+    fieldType: 'NUMBER',
+    options: null,
+  },
+  {
+    name: 'Notes',
+    apiName: 'notes__c',
+    fieldType: 'TEXT',
+    options: null,
+  },
+  {
+    name: 'Region',
+    apiName: 'region__c',
+    fieldType: 'SELECT',
+    options: ['APAC', 'EMEA', 'Americas'],
+  },
+  {
+    name: 'Tier',
+    apiName: 'tier__c',
+    fieldType: 'SELECT',
+    options: ['BRONZE', 'SILVER', 'GOLD', 'PLATINUM'],
+  },
 ];
-
-// 산업 목록
-const INDUSTRIES = ['Technology', 'Healthcare', 'Finance', 'Manufacturing', 'Retail', 'Education', 'Energy', 'Transportation'];
 
 // 데이터 소스 생성
 function createDataSource(): DataSource {
@@ -77,118 +161,114 @@ function createEsClient(): Client {
 // 진행률 표시
 function showProgress(current: number, total: number, label: string): void {
   const percent = Math.round((current / total) * 100);
-  const bar = '█'.repeat(Math.floor(percent / 2)) + '░'.repeat(50 - Math.floor(percent / 2));
-  process.stdout.write(`\r${label}: [${bar}] ${percent}% (${current.toLocaleString()}/${total.toLocaleString()})`);
-}
-
-// Account 시딩
-async function seedAccounts(dataSource: DataSource): Promise<string[]> {
-  console.log(`\n🏢 Account 시딩 시작 (${CONFIG.ACCOUNTS_COUNT.toLocaleString()}건)...`);
-
-  const accountIds: string[] = [];
-  const startTime = Date.now();
-
-  for (let offset = 0; offset < CONFIG.ACCOUNTS_COUNT; offset += CONFIG.BATCH_SIZE) {
-    const batchSize = Math.min(CONFIG.BATCH_SIZE, CONFIG.ACCOUNTS_COUNT - offset);
-
-    const accounts: Array<{
-      id: string;
-      name: string;
-      industry: string;
-      annualRevenue: number;
-    }> = [];
-
-    for (let i = 0; i < batchSize; i++) {
-      const id = uuidv4();
-      accountIds.push(id);
-
-      accounts.push({
-        id,
-        name: faker.company.name(),
-        industry: faker.helpers.arrayElement(INDUSTRIES),
-        annualRevenue: faker.number.int({ min: 100000, max: 1000000000 }),
-      });
-    }
-
-    // Account 배치 삽입
-    const placeholders = accounts.map(() => '(?, ?, ?, ?, NOW(), NOW())').join(', ');
-    const values = accounts.flatMap(a => [a.id, a.name, a.industry, a.annualRevenue]);
-    await dataSource.query(
-      `INSERT INTO accounts (id, name, industry, annual_revenue, created_at, updated_at) VALUES ${placeholders}`,
-      values
-    );
-
-    showProgress(offset + batchSize, CONFIG.ACCOUNTS_COUNT, '  Accounts');
-  }
-
-  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-  console.log(`\n  ✅ Account 시딩 완료 (${elapsed}초)`);
-
-  return accountIds;
+  const bar =
+    '█'.repeat(Math.floor(percent / 2)) +
+    '░'.repeat(50 - Math.floor(percent / 2));
+  process.stdout.write(
+    `\r${label}: [${bar}] ${percent}% (${current.toLocaleString()}/${total.toLocaleString()})`,
+  );
 }
 
 // 커스텀 필드 정의 시딩
-async function seedFieldDefinitions(dataSource: DataSource): Promise<Map<string, string>> {
+async function seedFieldDefinitions(
+  dataSource: DataSource,
+): Promise<Map<string, { id: string; fieldType: string }>> {
   console.log('\n📦 필드 정의 시딩...');
 
-  const fieldIdMap = new Map<string, string>();
+  const fieldIdMap = new Map<string, { id: string; fieldType: string }>();
 
-  for (const def of FIELD_DEFINITIONS) {
+  for (let i = 0; i < FIELD_DEFINITIONS.length; i++) {
+    const def = FIELD_DEFINITIONS[i];
     const id = uuidv4();
-    fieldIdMap.set(def.apiName, id);
 
     await dataSource.query(
-      `INSERT INTO field_definitions (id, label, api_name, data_type, options, is_required, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, NOW())
-       ON DUPLICATE KEY UPDATE label = VALUES(label)`,
-      [id, def.label, def.apiName, def.dataType, def.options ? JSON.stringify(def.options) : null, false]
+      `INSERT INTO custom_field_definitions (id, name, api_name, field_type, options, is_required, is_active, display_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE name = VALUES(name), field_type = VALUES(field_type), options = VALUES(options)`,
+      [
+        id,
+        def.name,
+        def.apiName,
+        def.fieldType,
+        def.options ? JSON.stringify(def.options) : null,
+        false,
+        true,
+        i,
+      ],
     );
   }
 
   // 기존 필드 ID 조회 (이미 존재하는 경우)
-  const existing = await dataSource.query('SELECT id, api_name FROM field_definitions');
+  const existing: FieldDefRow[] = await dataSource.query(
+    'SELECT id, api_name, field_type FROM custom_field_definitions',
+  );
   for (const row of existing) {
-    fieldIdMap.set(row.api_name, row.id);
+    fieldIdMap.set(row.api_name, { id: row.id, fieldType: row.field_type });
   }
 
   console.log(`  ✅ ${FIELD_DEFINITIONS.length}개 필드 정의 완료`);
   return fieldIdMap;
 }
 
-// 랜덤 커스텀 필드 값 생성 (단일 TEXT 컬럼용)
-function generateFieldValue(def: typeof FIELD_DEFINITIONS[0]): string | null {
-  switch (def.dataType) {
-    case 'select':
-      return faker.helpers.arrayElement(def.options!);
-    case 'multi_select':
-      const selected = faker.helpers.arrayElements(def.options!, { min: 1, max: 3 });
-      return selected.join(',');
-    case 'number':
+// 랜덤 커스텀 필드 값 생성 (타입별 컬럼용)
+function generateFieldValue(def: (typeof FIELD_DEFINITIONS)[0]): {
+  valueText: string | null;
+  valueNumber: number | null;
+  valueDate: string | null;
+  valueSelect: string | null;
+} {
+  const result = {
+    valueText: null as string | null,
+    valueNumber: null as number | null,
+    valueDate: null as string | null,
+    valueSelect: null as string | null,
+  };
+
+  switch (def.fieldType) {
+    case 'SELECT':
+      result.valueSelect = faker.helpers.arrayElement(def.options!);
+      break;
+    case 'NUMBER':
       if (def.apiName === 'score__c') {
-        return String(faker.number.int({ min: 0, max: 100 }));
+        result.valueNumber = faker.number.int({ min: 0, max: 100 });
+      } else {
+        result.valueNumber = faker.number.int({ min: 10000, max: 100000000 });
       }
-      return String(faker.number.int({ min: 10000, max: 100000000 }));
-    case 'date':
-      return faker.date.past({ years: 3 }).toISOString().split('T')[0];
-    case 'text':
-      return faker.lorem.sentence();
-    default:
-      return null;
+      break;
+    case 'DATE':
+      result.valueDate = faker.date
+        .past({ years: 3 })
+        .toISOString()
+        .split('T')[0];
+      break;
+    case 'TEXT':
+      result.valueText = faker.lorem.sentence();
+      break;
   }
+
+  return result;
 }
 
-// Contact + Field Values 배치 시딩
+// Contact + Custom Field Values 배치 시딩
 async function seedContacts(
   dataSource: DataSource,
-  fieldIdMap: Map<string, string>,
-  accountIds: string[]
+  fieldIdMap: Map<string, { id: string; fieldType: string }>,
 ): Promise<void> {
-  console.log(`\n👥 Contact 시딩 시작 (${CONFIG.CONTACTS_COUNT.toLocaleString()}건)...`);
+  console.log(
+    `\n👥 Contact 시딩 시작 (${CONFIG.CONTACTS_COUNT.toLocaleString()}건)...`,
+  );
 
   const startTime = Date.now();
 
-  for (let offset = 0; offset < CONFIG.CONTACTS_COUNT; offset += CONFIG.BATCH_SIZE) {
-    const batchSize = Math.min(CONFIG.BATCH_SIZE, CONFIG.CONTACTS_COUNT - offset);
+  for (
+    let offset = 0;
+    offset < CONFIG.CONTACTS_COUNT;
+    offset += CONFIG.BATCH_SIZE
+  ) {
+    const batchSize = Math.min(
+      CONFIG.BATCH_SIZE,
+      CONFIG.CONTACTS_COUNT - offset,
+    );
 
     // Contact 데이터 생성
     const contacts: Array<{
@@ -196,16 +276,17 @@ async function seedContacts(
       firstName: string;
       lastName: string;
       email: string;
-      phone: string;
-      accountId: string | null;
       status: 'active' | 'inactive';
     }> = [];
 
     const fieldValues: Array<{
       id: string;
-      recordId: string;
-      fieldId: string;
-      value: string | null;
+      contactId: string;
+      fieldDefinitionId: string;
+      valueText: string | null;
+      valueNumber: number | null;
+      valueDate: string | null;
+      valueSelect: string | null;
     }> = [];
 
     for (let i = 0; i < batchSize; i++) {
@@ -218,57 +299,66 @@ async function seedContacts(
         firstName,
         lastName,
         email: faker.internet.email({ firstName, lastName }).toLowerCase(),
-        phone: faker.phone.number(),
-        accountId: faker.datatype.boolean(0.7) ? faker.helpers.arrayElement(accountIds) : null,
-        status: faker.datatype.boolean(0.9) ? 'active' : 'inactive',
+        status: faker.helpers.arrayElement(['active', 'inactive']),
       });
 
       // 각 Contact에 대해 모든 커스텀 필드 값 생성
       for (const def of FIELD_DEFINITIONS) {
-        const fieldId = fieldIdMap.get(def.apiName)!;
-        const value = generateFieldValue(def);
+        const fieldInfo = fieldIdMap.get(def.apiName);
+        if (!fieldInfo) continue;
+
+        const values = generateFieldValue(def);
 
         fieldValues.push({
           id: uuidv4(),
-          recordId: contactId,
-          fieldId,
-          value,
+          contactId,
+          fieldDefinitionId: fieldInfo.id,
+          ...values,
         });
       }
     }
 
     // Contact 배치 삽입
     if (contacts.length > 0) {
-      const placeholders = contacts.map(() => '(?, ?, ?, ?, ?, ?, ?, NOW(), NOW())').join(', ');
-      const values = contacts.flatMap(c => [
+      const placeholders = contacts
+        .map(() => '(?, ?, ?, ?, ?, NOW(), NOW())')
+        .join(', ');
+      const values = contacts.flatMap((c) => [
         c.id,
+        c.email,
         c.firstName,
         c.lastName,
-        c.email,
-        c.phone,
-        c.accountId,
         c.status,
       ]);
       await dataSource.query(
-        `INSERT INTO contacts (id, first_name, last_name, email, phone, account_id, status, created_at, updated_at) VALUES ${placeholders}`,
-        values
+        `INSERT INTO contacts (id, email, first_name, last_name, status, created_at, updated_at) VALUES ${placeholders}`,
+        values,
       );
     }
 
     // Field Values 배치 삽입 (청크 분할)
     const FIELD_VALUES_CHUNK = 5000;
-    for (let fvOffset = 0; fvOffset < fieldValues.length; fvOffset += FIELD_VALUES_CHUNK) {
+    for (
+      let fvOffset = 0;
+      fvOffset < fieldValues.length;
+      fvOffset += FIELD_VALUES_CHUNK
+    ) {
       const chunk = fieldValues.slice(fvOffset, fvOffset + FIELD_VALUES_CHUNK);
-      const fvPlaceholders = chunk.map(() => '(?, ?, ?, ?, NOW(), NOW())').join(', ');
-      const fvValues = chunk.flatMap(fv => [
+      const fvPlaceholders = chunk
+        .map(() => '(?, ?, ?, ?, ?, ?, ?)')
+        .join(', ');
+      const fvValues = chunk.flatMap((fv) => [
         fv.id,
-        fv.recordId,
-        fv.fieldId,
-        fv.value,
+        fv.contactId,
+        fv.fieldDefinitionId,
+        fv.valueText,
+        fv.valueNumber,
+        fv.valueDate,
+        fv.valueSelect,
       ]);
       await dataSource.query(
-        `INSERT INTO field_values (id, record_id, field_id, value, created_at, updated_at) VALUES ${fvPlaceholders}`,
-        fvValues
+        `INSERT INTO custom_field_values (id, contact_id, field_definition_id, value_text, value_number, value_date, value_select) VALUES ${fvPlaceholders}`,
+        fvValues,
       );
     }
 
@@ -316,35 +406,51 @@ async function createEsIndex(esClient: Client): Promise<void> {
     mappings: {
       properties: {
         id: { type: 'keyword' },
-        firstName: { type: 'keyword' },
-        lastName: { type: 'keyword' },
-        fullName: {
+        name: {
           type: 'keyword',
           fields: {
             search: { type: 'text', analyzer: 'ngram_analyzer' },
           },
         },
-        email: { type: 'keyword' },
-        phone: { type: 'keyword' },
-        accountId: { type: 'keyword' },
-        status: { type: 'keyword' },
+        email: {
+          type: 'keyword',
+          fields: {
+            search: { type: 'text', analyzer: 'ngram_analyzer' },
+          },
+        },
         createdAt: { type: 'date' },
         updatedAt: { type: 'date' },
         customFields: {
           properties: {
-            department__c: { type: 'keyword' },
-            job_title__c: { type: 'keyword' },
+            department__c: {
+              type: 'keyword',
+              fields: { search: { type: 'text', analyzer: 'ngram_analyzer' } },
+            },
+            job_title__c: {
+              type: 'keyword',
+              fields: { search: { type: 'text', analyzer: 'ngram_analyzer' } },
+            },
             annual_revenue__c: { type: 'long' },
             contract_start__c: { type: 'date' },
-            lead_source__c: { type: 'keyword' },
+            lead_source__c: {
+              type: 'keyword',
+              fields: { search: { type: 'text', analyzer: 'ngram_analyzer' } },
+            },
             last_contact_date__c: { type: 'date' },
             score__c: { type: 'integer' },
             notes__c: {
               type: 'text',
+              analyzer: 'ngram_analyzer',
               fields: { keyword: { type: 'keyword', ignore_above: 256 } },
             },
-            region__c: { type: 'keyword' },
-            tier__c: { type: 'keyword' },
+            region__c: {
+              type: 'keyword',
+              fields: { search: { type: 'text', analyzer: 'ngram_analyzer' } },
+            },
+            tier__c: {
+              type: 'keyword',
+              fields: { search: { type: 'text', analyzer: 'ngram_analyzer' } },
+            },
           },
         },
       },
@@ -355,11 +461,16 @@ async function createEsIndex(esClient: Client): Promise<void> {
 }
 
 // ES 동기화
-async function syncToEs(dataSource: DataSource, esClient: Client): Promise<void> {
+async function syncToEs(
+  dataSource: DataSource,
+  esClient: Client,
+): Promise<void> {
   console.log(`\n🔄 ES 동기화 시작...`);
 
   // 전체 Contact 수 조회
-  const countResult = await dataSource.query('SELECT COUNT(*) as cnt FROM contacts');
+  const countResult: CountRow[] = await dataSource.query(
+    'SELECT COUNT(*) as cnt FROM contacts',
+  );
   const totalContacts = parseInt(countResult[0].cnt, 10);
 
   console.log(`  총 ${totalContacts.toLocaleString()}건 동기화 예정`);
@@ -368,62 +479,73 @@ async function syncToEs(dataSource: DataSource, esClient: Client): Promise<void>
   const ES_BATCH = 2000;
 
   for (let offset = 0; offset < totalContacts; offset += ES_BATCH) {
-    // Contact + 커스텀 필드 값 조회 (새 테이블 구조)
-    const contacts = await dataSource.query(`
+    // Contact + 커스텀 필드 값 조회 (현재 테이블 구조)
+    const contacts: ContactRow[] = await dataSource.query(
+      `
       SELECT
         c.id,
-        c.first_name as firstName,
-        c.last_name as lastName,
+        c.first_name,
+        c.last_name,
         c.email,
-        c.phone,
-        c.account_id as accountId,
-        c.status,
         c.created_at as createdAt,
         c.updated_at as updatedAt,
         GROUP_CONCAT(
-          CONCAT(fd.api_name, ':', COALESCE(fv.value, ''))
+          CONCAT(
+            cfd.api_name, ':',
+            cfd.field_type, ':',
+            COALESCE(cfv.value_text, ''), '|',
+            COALESCE(cfv.value_number, ''), '|',
+            COALESCE(cfv.value_date, ''), '|',
+            COALESCE(cfv.value_select, '')
+          )
           SEPARATOR '||'
         ) as custom_fields_raw
       FROM contacts c
-      LEFT JOIN field_values fv ON fv.record_id = c.id
-      LEFT JOIN field_definitions fd ON fd.id = fv.field_id
+      LEFT JOIN custom_field_values cfv ON cfv.contact_id = c.id
+      LEFT JOIN custom_field_definitions cfd ON cfd.id = cfv.field_definition_id
       GROUP BY c.id
       LIMIT ?, ?
-    `, [offset, ES_BATCH]);
+    `,
+      [offset, ES_BATCH],
+    );
 
     if (contacts.length === 0) break;
 
     // ES 벌크 요청 구성
-    const operations = contacts.flatMap((contact: {
-      id: string;
-      firstName: string;
-      lastName: string;
-      email: string | null;
-      phone: string | null;
-      accountId: string | null;
-      status: string;
-      createdAt: Date;
-      updatedAt: Date;
-      custom_fields_raw: string | null;
-    }) => {
+    const operations = contacts.flatMap((contact: ContactRow) => {
       const customFields: Record<string, string | number | null> = {};
 
       if (contact.custom_fields_raw) {
-        const pairs = contact.custom_fields_raw.split('||');
-        for (const pair of pairs) {
-          const colonIdx = pair.indexOf(':');
-          if (colonIdx > 0) {
-            const key = pair.substring(0, colonIdx);
-            const value = pair.substring(colonIdx + 1);
+        const entries = contact.custom_fields_raw.split('||');
+        for (const entry of entries) {
+          // 형식: apiName:fieldType:valueText|valueNumber|valueDate|valueSelect
+          const colonIdx = entry.indexOf(':');
+          const secondColonIdx = entry.indexOf(':', colonIdx + 1);
+          if (colonIdx > 0 && secondColonIdx > colonIdx) {
+            const apiName = entry.substring(0, colonIdx);
+            const fieldType = entry.substring(colonIdx + 1, secondColonIdx);
+            const valuesStr = entry.substring(secondColonIdx + 1);
+            const [valueText, valueNumber, valueDate, valueSelect] =
+              valuesStr.split('|');
 
-            // 타입에 따라 변환
-            const def = FIELD_DEFINITIONS.find(d => d.apiName === key);
-            if (def) {
-              if (def.dataType === 'number' && value) {
-                customFields[key] = parseFloat(value);
-              } else {
-                customFields[key] = value || null;
-              }
+            let value: string | number | null = null;
+            switch (fieldType) {
+              case 'TEXT':
+                value = valueText || null;
+                break;
+              case 'NUMBER':
+                value = valueNumber ? parseFloat(valueNumber) : null;
+                break;
+              case 'DATE':
+                value = valueDate || null;
+                break;
+              case 'SELECT':
+                value = valueSelect || null;
+                break;
+            }
+
+            if (value !== null) {
+              customFields[apiName] = value;
             }
           }
         }
@@ -433,13 +555,8 @@ async function syncToEs(dataSource: DataSource, esClient: Client): Promise<void>
         { index: { _index: 'contacts', _id: contact.id } },
         {
           id: contact.id,
-          firstName: contact.firstName,
-          lastName: contact.lastName,
-          fullName: `${contact.firstName} ${contact.lastName}`,
+          name: `${contact.first_name} ${contact.last_name}`,
           email: contact.email,
-          phone: contact.phone,
-          accountId: contact.accountId,
-          status: contact.status,
           createdAt: contact.createdAt,
           updatedAt: contact.updatedAt,
           customFields,
@@ -448,7 +565,11 @@ async function syncToEs(dataSource: DataSource, esClient: Client): Promise<void>
     });
 
     await esClient.bulk({ operations, refresh: false });
-    showProgress(Math.min(offset + ES_BATCH, totalContacts), totalContacts, '  ES Bulk');
+    showProgress(
+      Math.min(offset + ES_BATCH, totalContacts),
+      totalContacts,
+      '  ES Bulk',
+    );
   }
 
   // 리프레시 활성화 및 실행
@@ -465,8 +586,7 @@ async function syncToEs(dataSource: DataSource, esClient: Client): Promise<void>
 
 // 메인 함수
 async function main(): Promise<void> {
-  console.log('🚀 시딩 스크립트 시작 (Salesforce 스타일)');
-  console.log(`   - Accounts: ${CONFIG.ACCOUNTS_COUNT.toLocaleString()}건`);
+  console.log('🚀 시딩 스크립트 시작');
   console.log(`   - Contacts: ${CONFIG.CONTACTS_COUNT.toLocaleString()}건`);
   console.log(`   - Batch Size: ${CONFIG.BATCH_SIZE.toLocaleString()}`);
   console.log(`   - Skip ES: ${CONFIG.SKIP_ES}`);
@@ -479,21 +599,19 @@ async function main(): Promise<void> {
     await dataSource.initialize();
     console.log('\n✅ MySQL 연결 성공');
 
-    let accountIds: string[] = [];
-
     if (!CONFIG.ES_ONLY) {
-      // Account 시딩
-      accountIds = await seedAccounts(dataSource);
+      // 기존 데이터 삭제
+      console.log('\n🗑️  기존 데이터 삭제...');
+      await dataSource.query('DELETE FROM custom_field_values');
+      await dataSource.query('DELETE FROM contacts');
+      await dataSource.query('DELETE FROM custom_field_definitions');
+      console.log('  ✅ 기존 데이터 삭제 완료');
 
       // 필드 정의 시딩
       const fieldIdMap = await seedFieldDefinitions(dataSource);
 
       // Contact 시딩
-      await seedContacts(dataSource, fieldIdMap, accountIds);
-    } else {
-      // ES Only 모드: 기존 Account ID 조회
-      const existingAccounts = await dataSource.query('SELECT id FROM accounts');
-      accountIds = existingAccounts.map((a: { id: string }) => a.id);
+      await seedContacts(dataSource, fieldIdMap);
     }
 
     if (!CONFIG.SKIP_ES) {
@@ -505,19 +623,30 @@ async function main(): Promise<void> {
     // 결과 요약
     console.log('\n📊 시딩 완료 요약:');
 
-    const accountCount = await dataSource.query('SELECT COUNT(*) as cnt FROM accounts');
-    const contactCount = await dataSource.query('SELECT COUNT(*) as cnt FROM contacts');
-    const fieldValueCount = await dataSource.query('SELECT COUNT(*) as cnt FROM field_values');
+    const contactCount: CountRow[] = await dataSource.query(
+      'SELECT COUNT(*) as cnt FROM contacts',
+    );
+    const defCount: CountRow[] = await dataSource.query(
+      'SELECT COUNT(*) as cnt FROM custom_field_definitions',
+    );
+    const fieldValueCount: CountRow[] = await dataSource.query(
+      'SELECT COUNT(*) as cnt FROM custom_field_values',
+    );
 
-    console.log(`   - Accounts: ${parseInt(accountCount[0].cnt, 10).toLocaleString()}건`);
-    console.log(`   - Contacts: ${parseInt(contactCount[0].cnt, 10).toLocaleString()}건`);
-    console.log(`   - Field Values: ${parseInt(fieldValueCount[0].cnt, 10).toLocaleString()}건`);
+    console.log(
+      `   - Contacts: ${parseInt(contactCount[0].cnt, 10).toLocaleString()}건`,
+    );
+    console.log(
+      `   - Field Definitions: ${parseInt(defCount[0].cnt, 10).toLocaleString()}건`,
+    );
+    console.log(
+      `   - Field Values: ${parseInt(fieldValueCount[0].cnt, 10).toLocaleString()}건`,
+    );
 
     if (!CONFIG.SKIP_ES) {
       const esCount = await esClient.count({ index: 'contacts' });
       console.log(`   - ES Documents: ${esCount.count.toLocaleString()}건`);
     }
-
   } catch (error) {
     console.error('\n❌ 에러 발생:', error);
     process.exit(1);
@@ -527,4 +656,4 @@ async function main(): Promise<void> {
   }
 }
 
-main();
+void main();

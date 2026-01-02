@@ -9,6 +9,7 @@ import { FieldDefinitionEntity } from './infrastructure/persistence/typeorm/enti
 import { ContactRepository } from './infrastructure/persistence/typeorm/repository/contact.repository';
 import { CONTACT_REPOSITORY } from './application/contact/port/contact.repository.port';
 import { CustomFieldModule } from './customField.module';
+import { QueueModule } from './infrastructure/queue/queue.module';
 
 /**
  * Admin 모듈
@@ -24,6 +25,7 @@ import { CustomFieldModule } from './customField.module';
       FieldDefinitionEntity,
     ]),
     CustomFieldModule,
+    QueueModule,
   ],
   controllers: [ReindexController],
   providers: [
