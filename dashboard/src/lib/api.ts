@@ -8,7 +8,7 @@ import type {
   CustomFieldDefinition,
 } from '@/types/contact';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000').replace(/\/$/, '');
 
 /**
  * Contact 목록 조회
