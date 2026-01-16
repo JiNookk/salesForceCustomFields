@@ -1,9 +1,31 @@
-# EAV vs Elasticsearch Benchmark
+# EAV vs Elasticsearch Performance Benchmark
 
-> 🔗 **Live Demo**: [https://eav-elasticsearch-benchmark.vercel.app](https://eav-elasticsearch-benchmark.vercel.app)
+**동적 커스텀 필드 검색에서 MySQL EAV 패턴의 한계를 Elasticsearch로 해결한 성능 최적화 프로젝트**
 
-동적 커스텀 필드를 지원하는 Contact 관리 시스템에서 **EAV 패턴(MySQL)** vs **Elasticsearch** 성능을 비교합니다.
-50만 건 데이터 기준, 검색/정렬/집계 성능 차이를 실측하고 최적화 방법을 탐구합니다.
+> 🔗 **Live Demo**: [eav-elasticsearch-benchmark.vercel.app](https://eav-elasticsearch-benchmark.vercel.app)
+
+<br/>
+
+## TL;DR
+
+**50만 건** 데이터 기준, 커스텀 필드 검색에서 **최대 218배 성능 개선** 달성
+
+| 시나리오 | MySQL (EAV) | Elasticsearch | 개선율 |
+|----------|-------------|---------------|--------|
+| 커스텀 필드 필터 | 1,847ms | 21ms | **88x** |
+| 커스텀 필드 정렬 | 3,521ms | 19ms | **185x** |
+| 필터 + 정렬 조합 | 5,234ms | 24ms | **218x** |
+
+<br/>
+
+## 핵심 기술 포인트
+
+- **Transactional Outbox Pattern**: MySQL-ES 간 데이터 일관성 보장
+- **BullMQ 기반 비동기 동기화**: 평균 ~10ms 내 ES 반영
+- **Clean Architecture**: Domain/Application/Infrastructure 레이어 분리
+- **EAV → Document 비정규화**: 5.64GB → 312MB (18배 저장 효율)
+
+<br/>
 
 ## 문제 정의
 
@@ -261,14 +283,11 @@ dashboard/                           # Next.js 프론트엔드
 
 ## 기술 스택
 
-| 분류 | 기술 |
-|------|------|
-| Backend | NestJS, TypeORM, TypeScript |
-| Database | MySQL 8.0 (EAV 패턴) |
-| Search Engine | Elasticsearch 8.11 |
-| Message Queue | BullMQ (Redis) |
-| Frontend | Next.js 14, React Query, TailwindCSS |
-| Infrastructure | Docker Compose |
+**Backend:** NestJS · TypeORM · TypeScript
+**Database:** MySQL 8.0 (EAV) · Elasticsearch 8.11
+**Queue:** BullMQ · Redis
+**Frontend:** Next.js 14 · React Query · TailwindCSS
+**Infra:** Docker Compose
 
 ---
 
@@ -376,21 +395,6 @@ DELETE /api/v1/contacts/:id
 
 ---
 
-## 성능 테스트 결과
-
-50만 Contact + 10개 커스텀 필드 기준:
-
-| 시나리오 | MySQL (EAV) | Elasticsearch | 개선율 |
-|----------|-------------|---------------|--------|
-| 단순 목록 (20건) | 187ms | 12ms | **15x** |
-| 키워드 검색 | 312ms | 18ms | **17x** |
-| 커스텀 필드 필터 | 1,847ms | 21ms | **88x** |
-| 커스텀 필드 정렬 | 3,521ms | 19ms | **185x** |
-| 필터 + 정렬 조합 | 5,234ms | 24ms | **218x** |
-| 집계 (GROUP BY) | 4,892ms | 31ms | **158x** |
-
----
-
 ## 저장 용량 비교
 
 | 저장소 | 용량 | 설명 |
@@ -406,6 +410,14 @@ ES:     ██ 312.8 MB (18배 작음)
 > EAV 패턴은 유연하지만 저장 효율이 낮습니다.
 > Contact 1개당 커스텀 필드 10개 = 행 10개 (500만 행 폭발)
 > ES의 비정규화 + Lucene 압축이 오히려 더 효율적입니다.
+
+---
+
+## 배운 점
+
+- **트레이드오프 설계**: RDBMS의 ACID vs 검색 엔진의 성능, 양쪽 장점을 살리는 아키텍처
+- **분산 시스템의 일관성**: Transactional Outbox로 Eventually Consistent 보장
+- **실측 기반 의사결정**: 추측이 아닌 벤치마크 수치로 기술 선택 검증
 
 ---
 
