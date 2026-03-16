@@ -289,10 +289,10 @@ export class ElasticsearchService implements OnModuleInit {
           filter: filter.length > 0 ? filter : undefined,
         },
       },
-      sort: sortArray as Record<string, unknown>[],
+      sort: sortArray,
       from,
       size,
-    });
+    } as never);
 
     const hits = response.hits.hits;
     const total =
@@ -338,26 +338,27 @@ export class ElasticsearchService implements OnModuleInit {
           ? `customFields.${cond.field}`
           : cond.field;
 
+        const val = cond.value as string | number;
         switch (cond.operator) {
           case 'eq':
-            filter.push({ term: { [fieldPath]: cond.value } });
+            filter.push({ term: { [fieldPath]: val } });
             break;
           case 'contains':
             filter.push({
-              wildcard: { [fieldPath]: `*${String(cond.value)}*` },
+              wildcard: { [fieldPath]: `*${String(val)}*` },
             });
             break;
           case 'gt':
-            filter.push({ range: { [fieldPath]: { gt: cond.value } } });
+            filter.push({ range: { [fieldPath]: { gt: val } } });
             break;
           case 'lt':
-            filter.push({ range: { [fieldPath]: { lt: cond.value } } });
+            filter.push({ range: { [fieldPath]: { lt: val } } });
             break;
           case 'gte':
-            filter.push({ range: { [fieldPath]: { gte: cond.value } } });
+            filter.push({ range: { [fieldPath]: { gte: val } } });
             break;
           case 'lte':
-            filter.push({ range: { [fieldPath]: { lte: cond.value } } });
+            filter.push({ range: { [fieldPath]: { lte: val } } });
             break;
           case 'between':
             if (Array.isArray(cond.value) && cond.value.length === 2) {
@@ -401,10 +402,10 @@ export class ElasticsearchService implements OnModuleInit {
           filter: filter.length > 0 ? filter : undefined,
         },
       },
-      sort: sortArray as Record<string, unknown>[],
+      sort: sortArray,
       from,
       size,
-    });
+    } as never);
 
     const hits = response.hits.hits;
     const total =
