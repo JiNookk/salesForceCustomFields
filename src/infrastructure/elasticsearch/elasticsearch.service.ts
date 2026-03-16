@@ -334,7 +334,7 @@ export class ElasticsearchService implements OnModuleInit {
     // 필터 조건 (다양한 연산자 지원, email/name은 이미 keyword 타입)
     if (filterConditions) {
       for (const cond of filterConditions) {
-        const fieldPath = cond.isCustomField(field)
+        const fieldPath = isCustomField(cond.field)
           ? `customFields.${cond.field}`
           : cond.field;
 
@@ -546,7 +546,17 @@ export type EsMustClause =
 export type EsFilterClause =
   | { term: Record<string, string | number> }
   | { wildcard: Record<string, string> }
-  | { range: Record<string, { gt?: number | string; lt?: number | string; gte?: number | string; lte?: number | string }> };
+  | {
+      range: Record<
+        string,
+        {
+          gt?: number | string;
+          lt?: number | string;
+          gte?: number | string;
+          lte?: number | string;
+        }
+      >;
+    };
 
 /**
  * 정렬 조건 타입
