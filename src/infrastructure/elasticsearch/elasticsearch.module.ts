@@ -10,7 +10,7 @@ import { ELASTICSEARCH_CLIENT } from './elasticsearch.constants';
       provide: ELASTICSEARCH_CLIENT,
       useFactory: () => {
         return new Client({
-          node: process.env.ELASTICSEARCH_URL || 'http://localhost:9200',
+          node: process.env.ELASTICSEARCH_NODE || 'http://localhost:9200',
         });
       },
     },
